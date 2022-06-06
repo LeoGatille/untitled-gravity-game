@@ -7,46 +7,62 @@ public class Character_V2 : MonoBehaviour
 {
 
     private Animator animator;
+    public string characterName = "Coucou toi";
+    private Collider2D gravityAncor;
+    private bool isJumping = false;
+    private float jumpTime = 0;
+    private bool isAnchored;
+    private Vector2 normal;
+    private Vector2 collisionPosition;
+    private Vector2 contactPoint;
+
+    public float GravitationalPull;
     public Rigidbody2D rb;
     private bool isFacingRight = true;
     public float speed;
     public int jumpPower;
     public float JumpTimeLimit;
-
-    public string characterName = "Coucou toi";
-    private Collider2D gravityAncor;
-    private bool isFalling;
-    private bool isJumping = false;
-    private float jumpTime = 0;
     // Start is called before the first frame update
     void Start()
     {
         animator = GetComponent<Animator>();
-        Debug.Log(animator);
     }
 
     // Update is called once per frame
     void Update()
     {
+        if (gravityAncor != null)
+        {
+            rb.gravityScale = 0;
+            Debug.DrawLine(transform.position, gravityAncor.ClosestPoint(transform.position));
+        }
+        else
+        {
+            rb.gravityScale = 1;
+        }
         Translate(Input.GetAxis("Horizontal"));
-        // ApplyGravity();
         RecordJump();
     }
 
+    private void FixedUpdate()
+    {
+        if (isAnchored) StickToPlateform();
+    }
 
-    // private void FixedUpdate()
-    // {
-    //     Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, PullRadius, LayerToPull);
-    //     foreach (var collider in colliders)
-    //     {
-    //         Rigidbody2D rb = collider.GetComponent<Rigidbody2D>();
-    //         if (rb == null) continue;
-    //         Vector2 direction = transform.position - collider.transform.position;
-    //         if (direction.magnitude < MinRadius) continue;
-    //         float distance = direction.sqrMagnitude * DistanceMultiplier + 1;
-    //         rb.AddForce(direction.normalized * (GravitationalPull / distance) * rb.mass * Time.fixedDeltaTime);
-    //     }
-    // }
+    private void StickToPlateform()
+    {
+        if (!isAnchored || isJumping || gravityAncor == null) return;
+
+        Vector2 v2Postion = transform.position;
+        //? Vector2 direction = (transform.position - gravityAncor.transform.position);
+        Vector2 direction = v2Postion - gravityAncor.ClosestPoint(transform.position);
+        // Debug.DrawLine(gravityAncor.transform.position, transform.position, color: Color.gray, Mathf.Infinity);
+        // float distance = direction.sqrMagnitude;
+        // print("force : " + direction.normalized * (GravitationalPull / distance) * Time.fixedDeltaTime);
+        // rb.AddForce(direction.normalized * -1000 * Time.fixedDeltaTime);
+        rb.velocity = direction.normalized * -1000 * Time.fixedDeltaTime;
+        // rb.AddForce((direction.normalized * (GravitationalPull / distance) * Time.fixedDeltaTime * -1));
+    }
 
     private void Translate(float movement)
     {
@@ -67,12 +83,14 @@ public class Character_V2 : MonoBehaviour
 
     private void RecordJump()
     {
-        if (!isJumping && Input.GetButtonDown("Jump"))
+        if (isAnchored && Input.GetButtonDown("Jump"))
         {
-            animator.SetBool("isGrounding", false);
             isJumping = true;
-            animator.SetBool("isJumping", isJumping);
             jumpTime = 0;
+
+            //! Legacy animation management
+            animator.SetBool("isGrounding", false);
+            animator.SetBool("isJumping", isJumping);
         }
 
         if (isJumping)
@@ -83,7 +101,6 @@ public class Character_V2 : MonoBehaviour
         if (Input.GetButtonUp("Jump") | jumpTime > JumpTimeLimit)
         {
             isJumping = false;
-            isFalling = true;
             animator.SetBool("isJumping", isJumping);
         }
     }
@@ -111,28 +128,72 @@ public class Character_V2 : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter2D(Collision2D other)
-    {
-        // if (isFalling && other.transform.CompareTag("ground"))
-        // {
-        //     print("GROUNDING");
-        //     isFalling = false;
-        //     animator.SetBool("isGrounding", true);
-        //     var stopGrounding = new System.Timers.Timer();
-        //     stopGrounding.Interval = 500;
-        //     stopGrounding.Elapsed += StopGrounding;
-        //     stopGrounding.AutoReset = false;
-        //     stopGrounding.Enabled = true;
-        // }
-    }
-
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (other.CompareTag("gravityField"))
         {
-            gravityAncor = other;
+            isAnchored = true;
+            gravityAncor = other.transform.parent.gameObject.GetComponent<Collider2D>();
+
         }
     }
+
+    void OnTriggerExit2D(Collider2D other)
+    {
+        if (other.transform.CompareTag("gravityField"))
+        {
+            isAnchored = false;
+            gravityAncor = null;
+        }
+    }
+
+    private void OnCollisionEnter2D(Collision2D other)
+    {
+        if (other.transform.CompareTag("platform"))
+        {
+            // rb.velocity = new Vector2(0, 0);
+            // normal = other.contacts[0].normal;
+            // collisionPosition = other.transform.position;
+            // contactPoint = other.contacts[0].point;
+            // isAnchored = true;
+            // gravityAncor = other.collider;
+            // OnDrawGizmos();
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.position, normal);
+
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(new Vector2(0, 0), normal);
+
+        Gizmos.color = Color.blue;
+        Gizmos.DrawLine(collisionPosition, normal);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(contactPoint, normal);
+
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawLine(contactPoint, transform.position);
+
+
+    }
+
+    // private void OnCollisionExit2D(Collision2D other)
+    // {
+    //     isAnchored = !other.transform.CompareTag("platform");
+    //     gravityAncor = null;
+    // }
+
+    // private void OnTriggerEnter2D(Collider2D other)
+    // {
+    //     if (other.CompareTag("gravityField"))
+    //     {
+    //         gravityAncor = other;
+    //     }
+    // }
 
 #nullable enable
     private void StopGrounding(object? source, ElapsedEventArgs e)

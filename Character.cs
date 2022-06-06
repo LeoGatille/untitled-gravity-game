@@ -15,7 +15,6 @@ public class Character : MonoBehaviour
 
     public string characterName = "Coucou toi";
     private Collider2D gravityAncor;
-    private bool isFalling;
     private bool isJumping = false;
     private float jumpTime = 0;
     // Start is called before the first frame update
@@ -83,7 +82,6 @@ public class Character : MonoBehaviour
         if (Input.GetButtonUp("Jump") | jumpTime > JumpTimeLimit)
         {
             isJumping = false;
-            isFalling = true;
             animator.SetBool("isJumping", isJumping);
         }
     }
