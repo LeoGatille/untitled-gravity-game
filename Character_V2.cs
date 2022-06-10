@@ -15,6 +15,7 @@ public class Character_V2 : MonoBehaviour
     private Vector2 normal;
     private Vector2 collisionPosition;
     private Vector2 contactPoint;
+    private bool isCollidingPlateform;
 
     public float GravitationalPull;
     public Rigidbody2D rb;
@@ -31,6 +32,8 @@ public class Character_V2 : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        var boxBounds = GetComponent<Collider2D>().bounds;
+        Debug.DrawLine(new Vector2(boxBounds.center.x, boxBounds.center.y + boxBounds.extents.y), Vector3.zero);
         if (gravityAncor != null)
         {
             rb.gravityScale = 0;
@@ -39,6 +42,10 @@ public class Character_V2 : MonoBehaviour
         else
         {
             rb.gravityScale = 1;
+        }
+        if (Input.GetKeyDown(KeyCode.A))
+        {
+            transform.rotation = new Quaternion(0, 0, 0, 0);
         }
         Translate(Input.GetAxis("Horizontal"));
         RecordJump();
@@ -49,19 +56,23 @@ public class Character_V2 : MonoBehaviour
         if (isAnchored) StickToPlateform();
     }
 
+    // private void StickToPlateformV2()
+    // {
+    //     RaycastHit hit;
+    //     Vector3 castPos = new Vector3(transform.position.x, transform.position.y, transform.position.z);
+    //     if (Physics.Raycast(castPos, -transform.up, hit))
+    //     {
+    //         transform.rotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
+    //     }
+    // }
+
     private void StickToPlateform()
     {
-        if (!isAnchored || isJumping || gravityAncor == null) return;
+        if (isCollidingPlateform || !isAnchored || isJumping || gravityAncor == null) return;
 
         Vector2 v2Postion = transform.position;
-        //? Vector2 direction = (transform.position - gravityAncor.transform.position);
         Vector2 direction = v2Postion - gravityAncor.ClosestPoint(transform.position);
-        // Debug.DrawLine(gravityAncor.transform.position, transform.position, color: Color.gray, Mathf.Infinity);
-        // float distance = direction.sqrMagnitude;
-        // print("force : " + direction.normalized * (GravitationalPull / distance) * Time.fixedDeltaTime);
-        // rb.AddForce(direction.normalized * -1000 * Time.fixedDeltaTime);
-        rb.velocity = direction.normalized * -1000 * Time.fixedDeltaTime;
-        // rb.AddForce((direction.normalized * (GravitationalPull / distance) * Time.fixedDeltaTime * -1));
+        rb.velocity = direction.normalized * GravitationalPull * Time.fixedDeltaTime * -1;
     }
 
     private void Translate(float movement)
@@ -119,24 +130,35 @@ public class Character_V2 : MonoBehaviour
         isFacingRight = !isFacingRight;
     }
 
-    private void ApplyGravity()
-    {
-        if (gravityAncor)
-        {
-            Vector2 direction = gravityAncor.transform.position + transform.position;
-            transform.position = direction;
-        }
-    }
+
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+
+        //! https://forum.unity.com/threads/how-to-get-top-right-bottom-right-corner-of-boxcollider2d.653182/
         if (other.CompareTag("gravityField"))
         {
+            Collider2D parent = other.transform.parent.gameObject.GetComponent<Collider2D>();
+
+
+            var boxBounds = GetComponent<Collider2D>().bounds;
+            var top = new Vector2(boxBounds.center.x, boxBounds.center.y + boxBounds.extents.y);
+
+            //* Maybe try to compare Vectors from character Collider & other Vectiors
+
+            Vector2 nomal = Physics2D.Raycast(top, parent.transform.position).normal;
+
+            // transform.rotation = Quaternion.FromToRotation(top, normal) * transform.rotation;
+            transform.rotation = Quaternion.LookRotation(normal) * transform.rotation;
+
+
+            isCollidingPlateform = true;
             isAnchored = true;
-            gravityAncor = other.transform.parent.gameObject.GetComponent<Collider2D>();
+            gravityAncor = parent;
 
         }
     }
+
 
     void OnTriggerExit2D(Collider2D other)
     {
@@ -151,6 +173,12 @@ public class Character_V2 : MonoBehaviour
     {
         if (other.transform.CompareTag("platform"))
         {
+            // transform.rotation = Quaternion.FromToRotation(transform.up, other.contacts[0].normal) * transform.rotation;
+            // isCollidingPlateform = true;
+
+
+
+            // RaycastHit2D hit = Physics2D.Raycast(transform.position, other.contacts[0].point);
             // rb.velocity = new Vector2(0, 0);
             // normal = other.contacts[0].normal;
             // collisionPosition = other.transform.position;
@@ -177,15 +205,17 @@ public class Character_V2 : MonoBehaviour
 
         Gizmos.color = Color.magenta;
         Gizmos.DrawLine(contactPoint, transform.position);
-
-
     }
 
-    // private void OnCollisionExit2D(Collision2D other)
-    // {
-    //     isAnchored = !other.transform.CompareTag("platform");
-    //     gravityAncor = null;
-    // }
+    private void OnCollisionExit2D(Collision2D other)
+    {
+        if (other.transform.CompareTag("platform"))
+        {
+            isCollidingPlateform = false;
+        }
+        // isAnchored = !other.transform.CompareTag("platform");
+        // gravityAncor = null;
+    }
 
     // private void OnTriggerEnter2D(Collider2D other)
     // {
