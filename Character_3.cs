@@ -46,10 +46,10 @@ public class Character_3 : MonoBehaviour
         if (isAnchored && !isJumping)
         {
             PlateformAttraction();
-            if (!lockCollisionPoint)
-            {
-                MatchPlateformFloorAngle();
-            }
+        }
+        if (!lockCollisionPoint)
+        {
+            MatchPlateformFloorAngle();
         }
         if (Input.GetKeyDown(KeyCode.A))
         {
@@ -58,13 +58,13 @@ public class Character_3 : MonoBehaviour
             transform.rotation = new Quaternion(0, 0, 0, 0);
         }
 
-        DisplayCollisions();
+        GetNextCollisionPoint();
 
     }
 
     // void FixedUpdate()
     // {
-    //     DisplayCollisions();
+    //     GetNextCollisionPoint();
     // }
 
     //* ------------------------
@@ -77,9 +77,10 @@ public class Character_3 : MonoBehaviour
         {
             float correctedSpeed = isAnchored ? speed / 2 : speed;
             // Debug.Log("movement => " + movement);
-            if (Mathf.Abs(rb.velocity.x) < speed)
+            bool isTooFast = (rb.velocity + new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0)).x > (speed * 2);
+            if (!isTooFast)
             {
-                if (isAnchored)
+                if (isAnchored && !isJumping)
                 {
                     transform.Translate(Vector2.right * movement * Time.deltaTime * correctedSpeed);
                     rb.velocity += new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0);
@@ -88,10 +89,6 @@ public class Character_3 : MonoBehaviour
                 {
                     rb.velocity += new Vector2(movement / 10 /** * Time.deltaTime * correctedSpeed,*/, 0);
                 }
-            }
-            else
-            {
-                Debug.Log("Too much velocity");
             }
             animator.SetBool("isWalking", true);
 
@@ -141,7 +138,9 @@ public class Character_3 : MonoBehaviour
 
     private void Jump()
     {
-        rb.velocity = new Vector2(rb.velocity.x, jumpPower);
+        float movement = Input.GetAxis("Horizontal");
+        float correctedJumpPower = movement != 0 ? jumpPower / 1.2f : jumpPower;
+        rb.velocity = new Vector2(rb.velocity.x + movement / 2, correctedJumpPower);
         jumpTime += Time.deltaTime;
     }
 
@@ -151,26 +150,67 @@ public class Character_3 : MonoBehaviour
 
     private void PlateformAttraction()
     {
+        //- https://stackoverflow.com/questions/56170403/get-y-position-of-box-collider-borders
+        var collider = GetComponent<Collider2D>();
+        var yHalfExtents = collider.bounds.extents.y;
+        var yCenter = collider.bounds.center.y;
+
+
+
+
+
+        // float yLower = transform.position.y + (yCenter - yHalfExtents);
+        // float xCenter = transform.position.x + collider.bounds.center.x;
+        Vector2 bottomCenter = new Vector2(transform.position.x - collider.bounds.extents.x, transform.position.y - collider.bounds.extents.y);
+        Debug.DrawLine(bottomCenter, Vector3.zero, Color.cyan);
+        Debug.DrawLine(bottomCenter, gravityAnchor.ClosestPoint(bottomCenter), Color.red);
+
         if (!isAnchored) return;
-        Vector2 v2Positon = transform.position;
-        Vector2 direction = v2Positon - gravityAnchor.ClosestPoint(transform.position);
+
+        Vector2 direction = bottomCenter - gravityAnchor.ClosestPoint(bottomCenter);
+
+
+
+
+
+
+        // var spriteRenderer = GetComponent<SpriteRenderer>().bounds.size.x;
+
+        // Collider2D collider = GetComponent<Collider2D>(); 
+        // var boxBounds = collider.bounds;
+        // Vector2 attractedPoints = new Vector2(boxBounds.size.x / 2, boxBounds.size.y * -1);
+        // // Vector2 direction = attractedPoints - HitPosition(GetNextCollisionPoint());
+        // Vector2 direction = attractedPoints -  collider.ClosestPoint(HitPosition(GetNextCollisionPoint()));
+        // Debug.DrawLine(attractedPoints, Vector3.zero, Color.cyan);
+        // Debug.DrawLine(attractedPoints, gravityAnchor.ClosestPoint(attractedPoints), Color.cyan);
+
+
+
+        // if (!isAnchored) return;
+        // Vector2 v2Positon = transform.position;
+        // Vector2 direction = v2Positon - gravityAnchor.ClosestPoint(transform.position);
         rb.velocity = direction.normalized * gravitationalPull * Time.fixedDeltaTime * -1;
     }
     private void MatchPlateformFloorAngle()
     {
         //- https://forum.unity.com/threads/look-rotation-2d-equivalent.611044/
+        if (lockCollisionPoint) return;
 
-        lockCollisionPoint = true;
-        Vector2 closestCollisionPoint = DisplayCollisions();
+        Vector2 closestCollisionPoint = GetNextCollisionPoint();
         Vector2 posV2 = transform.position;
-        Vector2 vectorToTarget = HitPosition(closestCollisionPoint) - posV2;
-        // transform.rotation = Quaternion.LookRotation(direction);
+        Vector2 vectorToTarget = posV2 - HitPosition(closestCollisionPoint);
+        //! Need to get the HitPostion normal => this noral is the orientation that he chara must have
+        //! If it roate to match the closestHitPoint the only way to be perpendicular to noral is if it's origin pos is already perpendicular to hitPoint normal
 
-        Vector3 rotatedVectorToTarget = Quaternion.Euler(0, 0, 180) * vectorToTarget;
-        Quaternion targetRotation = Quaternion.LookRotation(Vector3.forward, rotatedVectorToTarget);
-        transform.rotation = targetRotation;
-        // transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, 360);
+        Vector3 rotatedVectorToTarget = /**Quaternion.Euler(0, 0, 180) **/vectorToTarget;
+        transform.rotation = Quaternion.LookRotation(Vector3.forward, rotatedVectorToTarget);
 
+        // Quaternion targetRotation = Quaternion.LookRotation(Vector3.forward, rotatedVectorToTarget);
+        // transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, 360 * Time.deltaTime);
+
+
+
+        //! Legacy
         // Vector3 myLocation = transform.position;
         // Vector3 targetLocation = path.lookPoints[pathIndex];
         // targetLocation.z = myLocation.z; // ensure there is no 3D rotation by aligning Z position
@@ -202,7 +242,7 @@ public class Character_3 : MonoBehaviour
         // Bounds boxBounds = GetComponent<Collider2D>().bounds;
 
 
-        // var closestCollisionPoint = DisplayCollisions();
+        // var closestCollisionPoint = GetNextCollisionPoint();
         // // var test = Physics2D.Linecast()
         // var centerTop = new Vector2(boxBounds.center.x, boxBounds.center.y + boxBounds.extents.y);
         // // var tmp = Vector3.Cross(centerTop, rhs: closestCollisionPoint);
@@ -299,6 +339,8 @@ public class Character_3 : MonoBehaviour
         var centerRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y);
         var bottomRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
 
+        Debug.DrawLine(topLeft, Vector3.zero, Color.blue);
+        Debug.DrawLine(bottomRight, Vector3.zero, Color.green);
         return new Vector2[] {
             topLeft,
             centerLeft,
@@ -307,9 +349,11 @@ public class Character_3 : MonoBehaviour
             centerRight,
             bottomRight
         };
+
     }
 
-    private Vector2 DisplayCollisions()
+    //! Rename this since it returns the closet point from the collision
+    private Vector2 GetNextCollisionPoint()
     {
         Vector2[] collisionListeners = GetCollisionPrediction();
 
@@ -338,7 +382,7 @@ public class Character_3 : MonoBehaviour
 
         }
 
-        Debug.DrawLine(collisionListeners[closestHitRayIndex], HitPosition(collisionListeners[closestHitRayIndex]), Color.red);
+        Debug.DrawLine(collisionListeners[closestHitRayIndex], HitPosition(collisionListeners[closestHitRayIndex]), Color.white);
         return collisionListeners[closestHitRayIndex];
 
         // for (int i = 0; i < collisionListeners.Length; i++)
@@ -415,6 +459,7 @@ public class Character_3 : MonoBehaviour
     {
         if (other.CompareTag("gravityField"))
         {
+            lockCollisionPoint = true;
             gravityAnchor = other.transform.parent.GetComponent<Collider2D>();
             isAnchored = true;
         }
