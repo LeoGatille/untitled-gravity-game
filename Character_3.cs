@@ -28,6 +28,7 @@ public class Character_3 : MonoBehaviour
     public float jumpPower;
     public float gravitationalPull;
     public float yLimit;
+    public LayerMask canHit;
 
     void Start()
     {
@@ -47,13 +48,15 @@ public class Character_3 : MonoBehaviour
         }
         if (Input.GetKeyDown(KeyCode.A))
         {
+            rb.velocity = new Vector2(0, 0);
+            transform.position = new Vector2(0, 0);
             transform.rotation = new Quaternion(0, 0, 0, 0);
         }
     }
 
     void FixedUpdate()
     {
-        DispayCollisionPoint();
+        DisplayCollisions();
     }
 
     //* ------------------------
@@ -71,7 +74,7 @@ public class Character_3 : MonoBehaviour
                 rb.velocity += new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0);
                 if (isAnchored)
                 {
-                    transform.Translate(Vector2.right * movement * Time.deltaTime * correctedSpeed);
+                    transform.Translate(Vector2.right * (movement / 10) * Time.deltaTime * correctedSpeed);
                 }
             }
             else
@@ -102,7 +105,7 @@ public class Character_3 : MonoBehaviour
 
     private void RecordJump()
     {
-        if (isAnchored && Input.GetButtonDown("Jump"))
+        if (isAnchored && (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetButtonDown("Jump")))
         {
             isJumping = true;
             jumpTime = 0;
@@ -155,65 +158,133 @@ public class Character_3 : MonoBehaviour
     //* Collision detection
     //* ------------------------
 
-    private void DispayCollisionPoint()
-    {
-        Vector2[] trajectories = CalluateFuturePosions();
-        Debug.DrawLine(transform.position, trajectories[trajectories.Length - 1]);
-    }
+    // private void DispayCollisionPoint(Vector2 origin)
+    // {
+    //     Vector2[] trajectories = CalluateFuturePosions(origin);
+    //     Debug.DrawLine(origin, trajectories[trajectories.Length - 1]);
+    // }
 
-    private Vector2[] CalluateFuturePosions()
+    private Vector2[] CalluateFuturePosions(Vector2 origin)
     {
         Vector2[] positions = new Vector2[31];
 
-        float lowestTimeValue = MaxTimeX() / 30;
+        float lowestTimeValue = MaxTimeX(origin) / 30;
 
         for (int i = 0; i < positions.Length; i++)
         {
             float currentTimeValue = lowestTimeValue * i;
-            positions[i] = CalculatePositionPoint(currentTimeValue);
+            positions[i] = CalculatePositionPoint(currentTimeValue, origin);
         }
 
         return positions;
     }
 
-    private Vector2 CalculatePositionPoint(float time)
+    private Vector2 CalculatePositionPoint(float time, Vector2 origin)
     {
         float x = rb.velocity.x * time;
         float y = (rb.velocity.y * time) - (gameGravity * Mathf.Pow(time, 2) / 2);
 
-        return new Vector2(x + transform.position.x, y + transform.position.y);
+        return new Vector2(x + origin.x, y + origin.y);
     }
 
-    private Vector2 HitPosition()
+    private Vector2 HitPosition(Vector2 origin)
     {
-        float lowestTimeValue = MaxTimeY() / 15;
+        float lowestTimeValue = MaxTimeY(origin) / 15;
 
         for (int i = 1; i < 16; i++)
         {
             float currentIterationTime = lowestTimeValue * i;
             float nextIterationTime = lowestTimeValue * (i + 1);
 
-            RaycastHit2D hit = Physics2D.Linecast(CalculatePositionPoint(currentIterationTime), CalculatePositionPoint(nextIterationTime));
+            RaycastHit2D hit = Physics2D.Linecast(CalculatePositionPoint(currentIterationTime, origin), CalculatePositionPoint(nextIterationTime, origin), canHit);
+
             if (hit)
             {
                 return hit.point;
             }
         }
 
-        return CalculatePositionPoint(MaxTimeY());
+        return CalculatePositionPoint(MaxTimeY(origin), origin);
     }
 
-    private float MaxTimeY()
+    private float MaxTimeY(Vector2 origin)
     {
         float v = rb.velocity.y;
         float vv = v * v;
 
-        return (v + Mathf.Sqrt(vv + 2 * gameGravity * (transform.position.y - -8))) / gameGravity;
+        return (v + Mathf.Sqrt(vv + 2 * gameGravity * (origin.y - -8))) / gameGravity;
     }
-    private float MaxTimeX()
+    private float MaxTimeX(Vector2 origin)
     {
         var x = rb.velocity.x;
-        return (HitPosition().x - transform.position.x) / x;
+        return (HitPosition(origin).x - origin.x) / x;
+    }
+
+    private void DisplayCollisions()
+    {
+        var boxBounds = GetComponent<Collider2D>().bounds;
+
+        var topLeft = new Vector2(boxBounds.center.x - boxBounds.extents.x, boxBounds.center.y + boxBounds.extents.y);
+        var centerLeft = new Vector2(boxBounds.center.x - boxBounds.extents.x, boxBounds.center.y);
+        var bottomLeft = new Vector2(boxBounds.center.x - boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
+
+        var topRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y + boxBounds.extents.y);
+        var centerRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y);
+        var bottomRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
+
+        var collisionListeners = new Vector2[] {
+            topLeft,
+            centerLeft,
+            bottomLeft,
+            topRight,
+            centerRight,
+            bottomRight
+        };
+
+        // var collisionListeners = new Vector2[] {
+        //     new Vector2(boxBounds.center.x, boxBounds.center.y + boxBounds.extents.y),
+        //     boxBounds.center,
+        //     new Vector2(boxBounds.center.x, boxBounds.center.y - boxBounds.extents.y),
+        // };
+
+        int closestHitRayIndex = -1;
+        for (int i = 0; i < collisionListeners.Length; i++)
+        {
+            print("i => " + i);
+            if (closestHitRayIndex == -1)
+            {
+                closestHitRayIndex = i;
+            }
+            else
+            {
+                var lastOrigin = collisionListeners[closestHitRayIndex];
+                var lastHitPoint = HitPosition(lastOrigin);
+                var lastDistance = Vector2.Distance(lastOrigin, lastHitPoint);
+
+                var origin = collisionListeners[i];
+                var nextHitPoint = HitPosition(origin);
+                var distance = Vector2.Distance(origin, nextHitPoint);
+                if (lastDistance > distance)
+                {
+                    closestHitRayIndex = i;
+                }
+            }
+        }
+
+        for (int i = 0; i < collisionListeners.Length; i++)
+        {
+            var color = i == closestHitRayIndex ? Color.red : Color.black;
+            Debug.DrawLine(collisionListeners[i], HitPosition(collisionListeners[i]), color);
+        }
+
+
+        // Debug.DrawLine(top, trajectories[trajectories.Length - 1]);
+        // Debug.DrawLine(boxBounds.center, trajectories[trajectories.Length - 1]);
+        // Debug.DrawLine(bottom, trajectories[trajectories.Length - 1]);
+
+        // DispayCollisionPoint(top);
+        // DispayCollisionPoint(boxBounds.center);
+        // DispayCollisionPoint(bottom);
     }
 
 
