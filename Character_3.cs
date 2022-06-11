@@ -18,6 +18,8 @@ public class Character_3 : MonoBehaviour
     private Collider2D gravityAnchor;
     private float gameGravity;
 
+    private bool lockCollisionPoint = false;
+
     //* ------------------------
     //* Public
     //* ------------------------
@@ -38,13 +40,16 @@ public class Character_3 : MonoBehaviour
 
     void Update()
     {
-
         Translate(Input.GetAxis("Horizontal"));
         RecordJump();
 
         if (isAnchored && !isJumping)
         {
             PlateformAttraction();
+            if (!lockCollisionPoint)
+            {
+                MatchPlateformFloorAngle();
+            }
         }
         if (Input.GetKeyDown(KeyCode.A))
         {
@@ -52,12 +57,15 @@ public class Character_3 : MonoBehaviour
             transform.position = new Vector2(0, 0);
             transform.rotation = new Quaternion(0, 0, 0, 0);
         }
+
+        DisplayCollisions();
+
     }
 
-    void FixedUpdate()
-    {
-        DisplayCollisions();
-    }
+    // void FixedUpdate()
+    // {
+    //     DisplayCollisions();
+    // }
 
     //* ------------------------
     //* Translation
@@ -71,10 +79,14 @@ public class Character_3 : MonoBehaviour
             // Debug.Log("movement => " + movement);
             if (Mathf.Abs(rb.velocity.x) < speed)
             {
-                rb.velocity += new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0);
                 if (isAnchored)
                 {
-                    transform.Translate(Vector2.right * (movement / 10) * Time.deltaTime * correctedSpeed);
+                    transform.Translate(Vector2.right * movement * Time.deltaTime * correctedSpeed);
+                    rb.velocity += new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0);
+                }
+                else
+                {
+                    rb.velocity += new Vector2(movement / 10 /** * Time.deltaTime * correctedSpeed,*/, 0);
                 }
             }
             else
@@ -144,25 +156,80 @@ public class Character_3 : MonoBehaviour
         Vector2 direction = v2Positon - gravityAnchor.ClosestPoint(transform.position);
         rb.velocity = direction.normalized * gravitationalPull * Time.fixedDeltaTime * -1;
     }
-    private void MatchPlateformFloorAngle(Vector2 collisionPoint)
+    private void MatchPlateformFloorAngle()
     {
-        RaycastHit hit;
-        if (Physics.Raycast(transform.position, collisionPoint, out hit, 1))
-        {
-            transform.rotation = Quaternion.LookRotation(Vector3.Cross(transform.TransformDirection(Vector3.right), hit.normal));
-        }
+        //- https://forum.unity.com/threads/look-rotation-2d-equivalent.611044/
+
+        lockCollisionPoint = true;
+        Vector2 closestCollisionPoint = DisplayCollisions();
+        Vector2 posV2 = transform.position;
+        Vector2 vectorToTarget = HitPosition(closestCollisionPoint) - posV2;
+        // transform.rotation = Quaternion.LookRotation(direction);
+
+        Vector3 rotatedVectorToTarget = Quaternion.Euler(0, 0, 180) * vectorToTarget;
+        Quaternion targetRotation = Quaternion.LookRotation(Vector3.forward, rotatedVectorToTarget);
+        transform.rotation = targetRotation;
+        // transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, 360);
+
+        // Vector3 myLocation = transform.position;
+        // Vector3 targetLocation = path.lookPoints[pathIndex];
+        // targetLocation.z = myLocation.z; // ensure there is no 3D rotation by aligning Z position
+
+        // vector from this object towards the target location
+        // Vector3 vectorToTarget = targetLocation - myLocation;
+        // rotate that vector by 90 degrees around the Z axis
+        // Vector3 rotatedVectorToTarget = Quaternion.Euler(0, 0, 90) * vectorToTarget;
+
+        // get the rotation that points the Z axis forward, and the Y axis 90 degrees away from the target
+        // (resulting in the X axis facing the target)
+        // Quaternion targetRotation = Quaternion.LookRotation(forward: Vector3.forward, upwards: rotatedVectorToTarget);
+
+        // changed this from a lerp to a RotateTowards because you were supplying a "speed" not an interpolation value
+        // transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
+        // transform.Translate(Vector3.right * speed * Time.deltaTime, Space.Self);
+
+
+
+
+
+        // RaycastHit hit;
+        // if (Physics.Raycast(transform.position, -transform.right, out hit))
+        // {
+        //     Vector3 temp = Vector3.Cross(transform.up, hit.normal);
+        //     transform.rotation = Quaternion.LookRotation(-temp);
+        // }
+
+        // Bounds boxBounds = GetComponent<Collider2D>().bounds;
+
+
+        // var closestCollisionPoint = DisplayCollisions();
+        // // var test = Physics2D.Linecast()
+        // var centerTop = new Vector2(boxBounds.center.x, boxBounds.center.y + boxBounds.extents.y);
+        // // var tmp = Vector3.Cross(centerTop, rhs: closestCollisionPoint);
+
+        // transform.rotation = Quaternion.LookRotation(HitPosition(closestCollisionPoint), closestCollisionPoint);
+
+
+
+        // Vector2 bottomLeft = new Vector2(boxBounds.center.x - boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
+        // Vector2 bottomRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
+
+        // var leftHit = Physics.Raycast(bottomLeft, HitPosition(bottomLeft));
+        // var rightHit = Physics.Raycast(bottomRight, HitPosition(bottomRight));
+
+        // Vector2 noraml = Vector2.Perpendicular(bottomLeft.)
+
+        // RaycastHit hit;
+        // if (Physics.Raycast(transform.position, collisionPoint, out hit, 1))
+        // {
+        //     transform.rotation = Quaternion.LookRotation(Vector3.Cross(transform.TransformDirection(Vector3.right), hit.normal));
+        // }
     }
 
 
     //* ------------------------
     //* Collision detection
     //* ------------------------
-
-    // private void DispayCollisionPoint(Vector2 origin)
-    // {
-    //     Vector2[] trajectories = CalluateFuturePosions(origin);
-    //     Debug.DrawLine(origin, trajectories[trajectories.Length - 1]);
-    // }
 
     private Vector2[] CalluateFuturePosions(Vector2 origin)
     {
@@ -220,7 +287,7 @@ public class Character_3 : MonoBehaviour
         return (HitPosition(origin).x - origin.x) / x;
     }
 
-    private void DisplayCollisions()
+    private Vector2[] GetCollisionPrediction()
     {
         var boxBounds = GetComponent<Collider2D>().bounds;
 
@@ -232,7 +299,7 @@ public class Character_3 : MonoBehaviour
         var centerRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y);
         var bottomRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
 
-        var collisionListeners = new Vector2[] {
+        return new Vector2[] {
             topLeft,
             centerLeft,
             bottomLeft,
@@ -240,17 +307,15 @@ public class Character_3 : MonoBehaviour
             centerRight,
             bottomRight
         };
+    }
 
-        // var collisionListeners = new Vector2[] {
-        //     new Vector2(boxBounds.center.x, boxBounds.center.y + boxBounds.extents.y),
-        //     boxBounds.center,
-        //     new Vector2(boxBounds.center.x, boxBounds.center.y - boxBounds.extents.y),
-        // };
+    private Vector2 DisplayCollisions()
+    {
+        Vector2[] collisionListeners = GetCollisionPrediction();
 
         int closestHitRayIndex = -1;
         for (int i = 0; i < collisionListeners.Length; i++)
         {
-            print("i => " + i);
             if (closestHitRayIndex == -1)
             {
                 closestHitRayIndex = i;
@@ -269,13 +334,18 @@ public class Character_3 : MonoBehaviour
                     closestHitRayIndex = i;
                 }
             }
+
+
         }
 
-        for (int i = 0; i < collisionListeners.Length; i++)
-        {
-            var color = i == closestHitRayIndex ? Color.red : Color.black;
-            Debug.DrawLine(collisionListeners[i], HitPosition(collisionListeners[i]), color);
-        }
+        Debug.DrawLine(collisionListeners[closestHitRayIndex], HitPosition(collisionListeners[closestHitRayIndex]), Color.red);
+        return collisionListeners[closestHitRayIndex];
+
+        // for (int i = 0; i < collisionListeners.Length; i++)
+        // {
+        //     var color = i == closestHitRayIndex ? Color.red : Color.black;
+        //     Debug.DrawLine(collisionListeners[i], HitPosition(collisionListeners[i]), color);
+        // }
 
 
         // Debug.DrawLine(top, trajectories[trajectories.Length - 1]);
@@ -355,6 +425,7 @@ public class Character_3 : MonoBehaviour
         if (other.CompareTag("gravityField"))
         {
             isAnchored = false;
+            lockCollisionPoint = false;
             gravityAnchor = null;
         }
     }
