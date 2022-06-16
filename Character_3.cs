@@ -31,10 +31,10 @@ public class Character_3 : MonoBehaviour
     public float yLimit;
     public LayerMask canHit;
 
-
     //* ------------------------
     //* Debug
     //* ------------------------
+
     public bool useAttraction;
     public bool useRotation;
 
@@ -49,6 +49,11 @@ public class Character_3 : MonoBehaviour
         Translate(Input.GetAxis("Horizontal"));
         RecordJump();
 
+
+        if (Input.GetKeyDown(KeyCode.Alpha0))
+        {
+            CastCollider();
+        }
 
         if (Input.GetKeyDown(KeyCode.B))
         {
@@ -174,23 +179,49 @@ public class Character_3 : MonoBehaviour
     private void MatchPlateformFloorAngle()
     {
 
+
+
+        var box = GetComponent<BoxCollider2D>();
+
+        var width = transform.localScale.x * box.size.x;
+        var heigth = transform.localScale.y * box.size.y;
+
+        var dimension = new Vector2(width, heigth);
+
+        var top = new Vector2(transform.position.x, box.transform.position.y + dimension.y / 2);
+
+
         //- https://forum.unity.com/threads/look-rotation-2d-equivalent.611044/
 
         //- TransformPoint VS TransfromDirection
         //- https://answers.unity.com/questions/154176/transformtransformpoint-vs-transformdirection.html
 
         Vector2 listener = GetNextCollisionPoint();
-        Vector2 closestCollisionPoint = HitPosition(GetNextCollisionPoint());
+        Vector2 closestCollisionPoint = HitPosition(listener);
         Vector2 posV2 = transform.position;
         Vector2 upV2 = transform.up;
 
         // var hit = Physics2D.Raycast(transform.TransformPoint(transform.position), transform.TransformDirection(closestCollisionPoint), Mathf.Infinity);
-        var hit = Physics2D.Raycast(transform.position, HitPosition(posV2) - posV2, Mathf.Infinity);
+        var hit = Physics2D.Raycast(transform.position, closestCollisionPoint - posV2, Mathf.Infinity);
 
-        Debug.DrawLine(hit.point, hit.point - hit.normal, Color.cyan);
-        Debug.DrawLine(posV2, hit.point, Color.green);
-        transform.rotation = Quaternion.LookRotation(Vector3.forward, hit.point - hit.normal - posV2);
+        Debug.DrawLine(hit.point, hit.point - hit.normal, Color.red);
+        // Debug.DrawLine(posV2, hit.point, Color.green);
+        // Debug.DrawLine(listener, hit.point, Color.red);
 
+        var direction = new Vector3(hit.point.x - hit.normal.x, hit.point.y - hit.normal.y, 0);
+
+        // Debug.DrawLine(transform.position, transform.position - direction, Color.green);
+        // transform.rotation = Quaternion.LookRotation(Vector3.forward, transform.position + new Vector3(hit.point.x - hit.normal.x, hit.point.y - hit.normal.y, 0));
+        transform.rotation = Quaternion.Euler(new Vector3(hit.point.x - hit.normal.x, hit.point.y - hit.normal.y, 0));
+
+        var angle = Quaternion.Euler(direction);
+
+        var toto = new Vector3(transform.up.x, transform.up.y, 0);
+        var tata = new Vector3(hit.normal.x, hit.normal.y, 0);
+        transform.rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
+
+        // transform.rotation.x = Quaternion.FromToRotation(Vector3.up, hit.normal).x;
+        // transform.rotation.z = Quaternion.FromToRotation(Vector3.up, hit.normal).z;
 
 
 
@@ -264,6 +295,13 @@ public class Character_3 : MonoBehaviour
     //* Collision detection
     //* ------------------------
 
+    private void CastCollider()
+    {
+        var collider = GetComponent<BoxCollider2D>();
+
+
+    }
+
     private Vector2[] CalluateFuturePosions(Vector2 origin)
     {
         Vector2[] positions = new Vector2[31];
@@ -333,6 +371,9 @@ public class Character_3 : MonoBehaviour
         var bottomRight = new Vector2(boxBounds.center.x + boxBounds.extents.x, boxBounds.center.y - boxBounds.extents.y);
 
 
+        //- https://gamedev.stackexchange.com/questions/128833/how-can-i-get-a-box-colliders-corners-vertices-positions
+
+
         return new Vector2[] {
             topLeft,
             centerLeft,
@@ -373,6 +414,13 @@ public class Character_3 : MonoBehaviour
 
 
         }
+
+
+
+
+
+
+
         // for (int i = 0; i < collisionListeners.Length; i++)
         // {
         //     var color = i == closestHitRayIndex ? Color.red : Color.black;
