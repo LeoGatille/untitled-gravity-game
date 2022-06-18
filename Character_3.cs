@@ -43,6 +43,8 @@ public class Character_3 : MonoBehaviour
     public bool useAttraction;
     public bool useRotation;
 
+    public float detectionDistance;
+
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -170,7 +172,7 @@ public class Character_3 : MonoBehaviour
 
     private void RecordJump()
     {
-        if (isAnchored && Input.GetButton("Jump"))
+        if (/**isAnchored && */ Input.GetButton("Jump"))
         {
             isJumping = true;
             jumpTime = 0;
@@ -349,9 +351,9 @@ public class Character_3 : MonoBehaviour
 
         print("posX: " + transform.position.x + " posY: " + transform.position.y + " nextX: " + nextFramePosition.x + " nextY: " + nextFramePosition.y);
 
-        Debug.DrawRay(transform.position, nextFramePosition - relouV2(transform.position), Color.blue, 1);
+        Debug.DrawRay(transform.position, nextFramePosition - relouV2(transform.position), Color.blue, 0.3f);
 
-        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - relouV2(transform.position), distance, canHit);
+        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - relouV2(transform.position), detectionDistance, canHit);
 
         if (hit.collider != null)
         {
@@ -569,24 +571,24 @@ public class Character_3 : MonoBehaviour
     //     }
     // }
 
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.CompareTag("gravityField"))
-        {
-            gravityAnchor = other.transform.parent.GetComponent<Collider2D>();
-            isAnchored = true;
-        }
-    }
+    // private void OnTriggerEnter2D(Collider2D other)
+    // {
+    //     if (other.CompareTag("gravityField"))
+    //     {
+    //         gravityAnchor = other.transform.parent.GetComponent<Collider2D>();
+    //         isAnchored = true;
+    //     }
+    // }
 
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        if (other.CompareTag("gravityField"))
-        {
-            isAnchored = false;
-            gravityAnchorParent = null;
-            gravityAnchor = null;
-        }
-    }
+    // private void OnTriggerExit2D(Collider2D other)
+    // {
+    //     if (other.CompareTag("gravityField"))
+    //     {
+    //         isAnchored = false;
+    //         gravityAnchorParent = null;
+    //         gravityAnchor = null;
+    //     }
+    // }
 
 
 }
