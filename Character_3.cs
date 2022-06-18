@@ -296,7 +296,16 @@ public class Character_3 : MonoBehaviour
         Vector3 tata = new Vector3(hit.normal.x, hit.normal.y, 0);
 
         var rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
-        transform.rotation = Quaternion.Lerp(transform.rotation, rotation, Time.fixedDeltaTime * 2);
+
+
+        // int frameRate = Application.targetFrameRate;
+
+        var distance = Vector3.Distance(hit.point, transform.position); //Vector3.Distance(hit.collider.bounds.center, hit.point) + Vector3.Distance(hit.collider.bounds.center, transform.position);
+
+        var delta = distance / Vector3.Distance(transform.position, rb.velocity);
+
+
+        transform.rotation = Quaternion.Lerp(transform.rotation, rotation, delta);
 
 
         // transform.rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
