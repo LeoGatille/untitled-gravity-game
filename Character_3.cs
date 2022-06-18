@@ -66,7 +66,10 @@ public class Character_3 : MonoBehaviour
             transform.position = new Vector2(0, 0);
             transform.rotation = new Quaternion(0, 0, 0, 0);
         }
-
+        if (useRotation)
+        {
+            CastCollider();
+        }
         GetNextCollisionPoint();
         //! Need to add force at the end of all computation to remove parasite forces 
         //! sutch as the gravityPull falsing the jump's velocity computation 
@@ -94,13 +97,9 @@ public class Character_3 : MonoBehaviour
         {
             rb.gravityScale = 1;
         }
+        // MatchPlateformFloorAngle();
 
-        if (isAnchored)
-        {
-            if (useRotation)
-                MatchPlateformFloorAngle();
 
-        }
 
 
 
@@ -248,9 +247,6 @@ public class Character_3 : MonoBehaviour
     }
     private void MatchPlateformFloorAngle()
     {
-
-
-
         var box = GetComponent<BoxCollider2D>();
 
         var width = transform.localScale.x * box.size.x;
@@ -289,62 +285,21 @@ public class Character_3 : MonoBehaviour
         var tata = new Vector3(hit.normal.x, hit.normal.y, 0);
 
         transform.rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
+    }
 
-        // transform.rotation.x = Quaternion.FromToRotation(Vector3.up, hit.normal).x;
-        // transform.rotation.z = Quaternion.FromToRotation(Vector3.up, hit.normal).z;
+    private void MatchPlateformFloorAngleV2(RaycastHit2D hit)
+    {
+        Vector3 direction = new Vector3(hit.point.x - hit.normal.x, hit.point.y - hit.normal.y, 0);
+        Quaternion angle = Quaternion.Euler(direction);
 
+        Vector3 toto = new Vector3(transform.up.x, transform.up.y, 0);
+        Vector3 tata = new Vector3(hit.normal.x, hit.normal.y, 0);
 
-
-
-
-
-
-
-
-        // if (hit)
-        // {
-
-        // Debug.DrawLine(Vector3.zero, transform.TransformPoint(transform.up));
-        // //     // Debug.DrawLine(transform.TransformDirection(listener), closestCollisionPoint, Color.cyan);
-        // //     // transform.position =>  hit.point WHITE
-        // //     // Debug.DrawLine(transform.position, hit.point);
-        // //     // Listener =>  Closest YELLOW
-        // Debug.DrawLine(hit.normal, closestCollisionPoint, color: Color.black);
-        // Debug.DrawLine((transform.position), closestCollisionPoint, color: Color.yellow);
-
-        // Debug.DrawLine(hit.normal, Vector3.zero, Color.blue);
+        var rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
+        transform.rotation = Quaternion.Lerp(transform.rotation, rotation, Time.fixedDeltaTime * 2);
 
 
-        //     // transform.LookAt(hit.transform.position + hit.transform.up, hit.normal);
-        //     var test = Quaternion.LookRotation(Vector3.forward, hit.normal - Vector2.zero);
-
-        //     // var test = 
-
-        //     transform.rotation = test; // Quaternion.RotateTowards(transform.rotation, to: test, 360);
-        //     // hit.point =>  hit.normal YELLOW
-        //     // Debug.DrawLine(hit.point, hit.normal, Color.black);
-        //     // Debug.DrawLine(closestCollisionPoint, hit.normal, Color.red);
-
-        //     //! Je crois que la normal se cale toujours au plus près de Vector2.zero.
-        //     //! Le perso regarde le centre surement parceque la vrais trajectoir est normal - closestCollisionPoint
-        //     //! Il faut trouver le moyen de filler l'angle (normal -> closestCollisionPoint) comme rotation pour transform.rotation
-
-        //     // print("hit.noraml => " + hit.normal);
-        //     // Debug.DrawLine(transform.position, transform.up, Color.green);
-        // }
-        // else
-        // {
-
-        // }
-
-
-
-
-        // //! Need to get the HitPostion normal => this noral is the orientation that he chara must have
-        // //! If it roate to match the closestHitPoint the only way to be perpendicular to noral is if it's origin pos is already perpendicular to hitPoint normal
-
-        // Vector3 rotatedVectorToTarget = /**Quaternion.Euler(0, 0, 180) **/vectorToTarget;
-        // transform.rotation = Quaternion.LookRotation(Vector3.forward, rotatedVectorToTarget);
+        // transform.rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
     }
 
 
@@ -361,15 +316,45 @@ public class Character_3 : MonoBehaviour
 
 
     }
+
     //* ------------------------
     //* Collision detection
     //* ------------------------
-
     private void CastCollider()
     {
-        var collider = GetComponent<BoxCollider2D>();
+        // BoxCast usgin prediction method for direction & distance
+        // If hits 
+        // rotates to match floor
+        // No need to cast this collider anymore
+        // BoxCast on chara feets 
+        // If hits
+        // IsAnchored = true
+        // PlateformAttraction()
 
+        if (isAnchored) return;
 
+        Vector2 size = GetComponent<BoxCollider2D>().size;
+        Vector2 nextFramePosition = CalculatePositionPoint(MaxTimeY(transform.position) / 2, transform.position);
+        // Vector2 nextFramePosition = GetNextFramePosition(transform.position);
+        float distance = Vector2.Distance(transform.position, nextFramePosition);
+
+        print("posX: " + transform.position.x + " posY: " + transform.position.y + " nextX: " + nextFramePosition.x + " nextY: " + nextFramePosition.y);
+
+        Debug.DrawRay(transform.position, nextFramePosition - relouV2(transform.position), Color.blue, 1);
+
+        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - relouV2(transform.position), distance, canHit);
+
+        if (hit.collider != null)
+        {
+            Debug.DrawRay(transform.position, hit.point - relouV2(transform.position), Color.yellow, 1);
+            MatchPlateformFloorAngleV2(hit);
+        }
+    }
+
+    private Vector2 GetNextFramePosition(Vector2 origin)
+    {
+        float timeValue = MaxTimeX(origin) / 30 * 2;
+        return CalculatePositionPoint(timeValue, origin);
     }
 
     private Vector2[] CalluateFuturePosions(Vector2 origin)
