@@ -1,4 +1,4 @@
-
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -18,18 +18,22 @@ public class Character_3 : MonoBehaviour
     private Collider2D gravityAnchor;
     private float gameGravity;
     private Transform gravityAnchorParent;
+    private Rigidbody2D rb;
+
 
     //* ------------------------
     //* Public
     //* ------------------------
 
-    public Rigidbody2D rb;
     public float speed;
     public float JumpTimeLimit;
-    public float jumpPower;
+    public float maxJumpVelocity;
     public float gravitationalPull;
     public float yLimit;
     public LayerMask canHit;
+    public float moveSpeed;
+    public float maxSpeed;
+    public float jumpPower;
 
     //* ------------------------
     //* Debug
@@ -40,38 +44,47 @@ public class Character_3 : MonoBehaviour
 
     void Start()
     {
+        rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         gameGravity = Mathf.Abs(Physics2D.gravity.y);
     }
 
     void Update()
     {
-        Translate(Input.GetAxis("Horizontal"));
+        ShowDirection();
         RecordJump();
 
-
-        if (Input.GetKeyDown(KeyCode.Alpha0))
+        if (Input.GetKeyDown(KeyCode.M))
         {
             CastCollider();
         }
 
         if (Input.GetKeyDown(KeyCode.B))
         {
-            rb.velocity = new Vector2(0, 0);
+            rb.velocity = Vector3.zero;
             transform.position = new Vector2(0, 0);
             transform.rotation = new Quaternion(0, 0, 0, 0);
         }
 
         GetNextCollisionPoint();
-
+        //! Need to add force at the end of all computation to remove parasite forces 
+        //! sutch as the gravityPull falsing the jump's velocity computation 
+        //! (actually their no way to see any difference beteween gravityForce or a Translation froce)
     }
 
     void FixedUpdate()
     {
+        Translate(Input.GetAxis("Horizontal"));
+
         if (isAnchored && !isJumping)
         {
+            rb.gravityScale = 0;
             if (useAttraction)
                 PlateformAttraction();
+        }
+        else
+        {
+            rb.gravityScale = 1;
         }
 
         if (useRotation)
@@ -85,29 +98,47 @@ public class Character_3 : MonoBehaviour
     //* Translation
     //* ------------------------
 
+
+    private Vector2 GetInputDirection()
+    {
+        float x = Input.GetAxis("Horizontal");
+        float y = Input.GetAxis("Vertical");
+
+        return Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
+    }
+    private void ShowDirection()
+    {
+        float x = Input.GetAxis("Horizontal");
+        float y = Input.GetAxis("Vertical");
+
+        Vector2 realDirection = Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
+
+        //* Juste have to shot a ray & make sure the arrow won't hit the current gravityAncor
+        Debug.DrawLine(transform.position, relouV2(transform.position) - realDirection, Color.green);
+    }
+
     private void Translate(float movement)
     {
+
         if (movement != 0)
         {
-            float correctedSpeed = isAnchored ? speed / 2 : speed;
-            // Debug.Log("movement => " + movement);
-            bool isTooFast = (rb.velocity + new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0)).x > speed;
-            if (!isTooFast)
-            {
-                if (isAnchored && !isJumping)
-                {
-                    transform.Translate(Vector2.right * movement * Time.deltaTime * correctedSpeed);
-                    rb.velocity += new Vector2(movement /** * Time.deltaTime * correctedSpeed,*/, 0);
-                    transform.Translate(Vector2.right * movement * Time.deltaTime * correctedSpeed);
-                }
-                else
-                {
-                    rb.velocity += new Vector2(movement / 10 /** * Time.deltaTime * correctedSpeed,*/, 0);
-                }
-            }
-            animator.SetBool("isWalking", true);
+            bool goesRight = movement > 0;
+            float velocityModifier = isAnchored ? 2 : 1;
+            Vector2 velocityTmp = rb.velocity;
+            Vector2 velocityToAdd = new Vector2(movement * moveSpeed / velocityModifier, 0);
 
-            if (isFacingRight != (movement > 0)) Flip();
+            bool isUnderVelocityLimits = goesRight ? velocityTmp.x + velocityToAdd.x <= maxSpeed : velocityTmp.x + velocityToAdd.x >= maxSpeed * -1;
+
+            if (isUnderVelocityLimits)
+            {
+                rb.AddForce(velocityToAdd, ForceMode2D.Impulse);
+                animator.SetBool("isWalking", true);
+            }
+
+            if (isFacingRight != goesRight)
+            {
+                Flip();
+            }
         }
         else
         {
@@ -129,7 +160,7 @@ public class Character_3 : MonoBehaviour
 
     private void RecordJump()
     {
-        if (isAnchored && (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetButtonDown("Jump")))
+        if (isAnchored && Input.GetButtonDown("Jump"))
         {
             isJumping = true;
             jumpTime = 0;
@@ -141,6 +172,7 @@ public class Character_3 : MonoBehaviour
 
         if (isJumping)
         {
+            jumpTime += Time.deltaTime;
             Jump();
         }
 
@@ -153,10 +185,28 @@ public class Character_3 : MonoBehaviour
 
     private void Jump()
     {
-        float movement = Input.GetAxis("Horizontal");
-        float correctedJumpPower = movement != 0 ? jumpPower / 1.2f : jumpPower;
-        rb.velocity = new Vector2(rb.velocity.x + movement / 2, correctedJumpPower);
-        jumpTime += Time.deltaTime;
+        Func<float, float, bool> isVelocityValid = (velocity, limit) =>
+        {
+            return velocity > 0 ? velocity <= limit : velocity >= limit * -1;
+        };
+
+        Vector2 direction = GetInputDirection();
+        Vector2 velocity = rb.velocity;
+        float maxVelocityXToAdd = velocity.x - direction.x;
+        float maxVelocityYToAdd = velocity.y - direction.x + jumpPower;
+
+        bool isVXValid = isVelocityValid(velocity.x + maxVelocityXToAdd, maxSpeed);
+        bool isVYValid = isVelocityValid(velocity.y + maxVelocityYToAdd, maxJumpVelocity);
+
+        print("Valid => X: " + isVXValid + " val: " + maxVelocityXToAdd + " Y: " + isVYValid + " val: " + maxVelocityYToAdd);
+
+        //! Nice concept to always reach the max but needs more thinking
+        // float velocityXToAdd = isVXValid ? maxVelocityXToAdd : maxVelocityXToAdd - velocity.x;
+        // float velocityYToAdd = isVYValid ? maxVelocityYToAdd : maxVelocityYToAdd - velocity.y;
+        print("jumpVector => " + new Vector2(isVXValid ? maxVelocityXToAdd : 0, isVYValid ? maxVelocityYToAdd : 0));
+        Vector2 force = new Vector2(isVXValid ? maxVelocityXToAdd : 0, isVYValid ? maxVelocityYToAdd : 0);
+
+        rb.AddForce(force, ForceMode2D.Impulse);
     }
 
     //* ------------------------
@@ -165,6 +215,7 @@ public class Character_3 : MonoBehaviour
 
     private void PlateformAttraction()
     {
+        print("Platform attraction");
         //- https://stackoverflow.com/questions/56170403/get-y-position-of-box-collider-borders
         var collider = GetComponent<Collider2D>();
         var yHalfExtents = collider.bounds.extents.y;
@@ -172,9 +223,9 @@ public class Character_3 : MonoBehaviour
         Vector2 bottomCenter = new Vector2(transform.position.x - collider.bounds.extents.x, transform.position.y - collider.bounds.extents.y);
 
         if (!isAnchored) return;
-
-        Vector2 direction = bottomCenter - gravityAnchor.ClosestPoint(bottomCenter);
-        rb.velocity = direction.normalized * gravitationalPull * Time.fixedDeltaTime * -1;
+        Vector2 direction = relouV2(transform.position) - gravityAnchor.ClosestPoint(transform.position);
+        rb.AddForce(direction * gravitationalPull * -1, ForceMode2D.Force);
+        // rb.velocity = direction.normalized * gravitationalPull * Time.fixedDeltaTime * -1;
     }
     private void MatchPlateformFloorAngle()
     {
@@ -488,6 +539,23 @@ public class Character_3 : MonoBehaviour
     //* ------------------------
     //* Listeners
     //* ------------------------
+
+    // private void OnCollisionEnter2D(Collision2D other)
+    // {
+    //     if (other.transform.CompareTag("platform"))
+    //     {
+    //         isGrounded = true;
+    //     }
+    // }
+
+    // private void OnCollisionExit2D(Collision2D other)
+    // {
+    //     if (other.transform.CompareTag("platform"))
+    //     {
+    //         isGrounded = false;
+    //     }
+    // }
+
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (other.CompareTag("gravityField"))
