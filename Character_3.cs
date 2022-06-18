@@ -19,6 +19,7 @@ public class Character_3 : MonoBehaviour
     private float gameGravity;
     private Transform gravityAnchorParent;
     private Rigidbody2D rb;
+    private Vector2 gravityForce;
 
 
     //* ------------------------
@@ -76,6 +77,13 @@ public class Character_3 : MonoBehaviour
     {
         Translate(Input.GetAxis("Horizontal"));
 
+
+        if (isJumping)
+        {
+            jumpTime += Time.deltaTime;
+            Jump();
+        }
+
         if (isAnchored && !isJumping)
         {
             rb.gravityScale = 0;
@@ -87,18 +95,21 @@ public class Character_3 : MonoBehaviour
             rb.gravityScale = 1;
         }
 
-        if (useRotation)
-            MatchPlateformFloorAngle();
+        if (isAnchored)
+        {
+            if (useRotation)
+                MatchPlateformFloorAngle();
+
+        }
 
 
 
     }
 
+
     //* ------------------------
     //* Translation
     //* ------------------------
-
-
     private Vector2 GetInputDirection()
     {
         float x = Input.GetAxis("Horizontal");
@@ -160,7 +171,7 @@ public class Character_3 : MonoBehaviour
 
     private void RecordJump()
     {
-        if (isAnchored && Input.GetButtonDown("Jump"))
+        if (isAnchored && Input.GetButton("Jump"))
         {
             isJumping = true;
             jumpTime = 0;
@@ -168,12 +179,6 @@ public class Character_3 : MonoBehaviour
             //! Legacy animation management
             animator.SetBool("isGrounding", false);
             animator.SetBool("isJumping", isJumping);
-        }
-
-        if (isJumping)
-        {
-            jumpTime += Time.deltaTime;
-            Jump();
         }
 
         if (Input.GetButtonUp("Jump") | jumpTime > JumpTimeLimit)
@@ -185,26 +190,35 @@ public class Character_3 : MonoBehaviour
 
     private void Jump()
     {
-        Func<float, float, bool> isVelocityValid = (velocity, limit) =>
-        {
-            return velocity > 0 ? velocity <= limit : velocity >= limit * -1;
-        };
+        Func<float, float, bool> isVelocityValid = (velocity, limit) => velocity > 0 ? velocity <= limit : velocity >= limit * -1;
 
         Vector2 direction = GetInputDirection();
         Vector2 velocity = rb.velocity;
         float maxVelocityXToAdd = velocity.x - direction.x;
         float maxVelocityYToAdd = velocity.y - direction.x + jumpPower;
 
-        bool isVXValid = isVelocityValid(velocity.x + maxVelocityXToAdd, maxSpeed);
-        bool isVYValid = isVelocityValid(velocity.y + maxVelocityYToAdd, maxJumpVelocity);
+        // bool isVXValid = isVelocityValid(velocity.x + maxVelocityXToAdd, maxSpeed);
+        // bool isVYValid = isVelocityValid(velocity.y + maxVelocityYToAdd, maxJumpVelocity);
 
-        print("Valid => X: " + isVXValid + " val: " + maxVelocityXToAdd + " Y: " + isVYValid + " val: " + maxVelocityYToAdd);
+        // bool isVXValid = isVelocityValid(velocity.x + maxVelocityXToAdd, maxSpeed);
+        bool isVYValid = isVelocityValid(velocity.y + jumpPower, maxJumpVelocity);
+
+
 
         //! Nice concept to always reach the max but needs more thinking
         // float velocityXToAdd = isVXValid ? maxVelocityXToAdd : maxVelocityXToAdd - velocity.x;
         // float velocityYToAdd = isVYValid ? maxVelocityYToAdd : maxVelocityYToAdd - velocity.y;
-        print("jumpVector => " + new Vector2(isVXValid ? maxVelocityXToAdd : 0, isVYValid ? maxVelocityYToAdd : 0));
-        Vector2 force = new Vector2(isVXValid ? maxVelocityXToAdd : 0, isVYValid ? maxVelocityYToAdd : 0);
+
+        // print("X valid : " + isVXValid + " Y valid : " + isVYValid);
+
+        Vector2 force = new Vector2(0, isVYValid ? jumpPower : 0);
+
+        if (isAnchored)
+        {
+            //     rb.AddForce(gravityForce * -1, ForceMode2D.Force); //* Cancel Gravity pull parasites forces 
+            rb.velocity = Vector3.zero;
+        }
+
 
         rb.AddForce(force, ForceMode2D.Impulse);
     }
@@ -215,15 +229,20 @@ public class Character_3 : MonoBehaviour
 
     private void PlateformAttraction()
     {
-        print("Platform attraction");
+        if (!isAnchored)
+        {
+            gravityForce = Vector2.zero;
+            return;
+        }
+
         //- https://stackoverflow.com/questions/56170403/get-y-position-of-box-collider-borders
         var collider = GetComponent<Collider2D>();
         var yHalfExtents = collider.bounds.extents.y;
         var yCenter = collider.bounds.center.y;
         Vector2 bottomCenter = new Vector2(transform.position.x - collider.bounds.extents.x, transform.position.y - collider.bounds.extents.y);
 
-        if (!isAnchored) return;
         Vector2 direction = relouV2(transform.position) - gravityAnchor.ClosestPoint(transform.position);
+        gravityForce = direction * gravitationalPull * -1;
         rb.AddForce(direction * gravitationalPull * -1, ForceMode2D.Force);
         // rb.velocity = direction.normalized * gravitationalPull * Time.fixedDeltaTime * -1;
     }
@@ -263,12 +282,12 @@ public class Character_3 : MonoBehaviour
 
         // Debug.DrawLine(transform.position, transform.position - direction, Color.green);
         // transform.rotation = Quaternion.LookRotation(Vector3.forward, transform.position + new Vector3(hit.point.x - hit.normal.x, hit.point.y - hit.normal.y, 0));
-        transform.rotation = Quaternion.Euler(new Vector3(hit.point.x - hit.normal.x, hit.point.y - hit.normal.y, 0));
 
         var angle = Quaternion.Euler(direction);
 
         var toto = new Vector3(transform.up.x, transform.up.y, 0);
         var tata = new Vector3(hit.normal.x, hit.normal.y, 0);
+
         transform.rotation = Quaternion.FromToRotation(toto, tata) * transform.rotation;
 
         // transform.rotation.x = Quaternion.FromToRotation(Vector3.up, hit.normal).x;
