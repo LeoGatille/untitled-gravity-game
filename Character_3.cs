@@ -54,13 +54,12 @@ public class Character_3 : MonoBehaviour
 
     void Update()
     {
+
+
+        Debug.DrawRay(transform.up, Vector3.zero - transform.up);
         ShowDirection();
         RecordJump();
-
-        if (Input.GetKeyDown(KeyCode.M))
-        {
-            CastCollider();
-        }
+        CalculateFuturePosions(transform.position);
 
         if (Input.GetKeyDown(KeyCode.B))
         {
@@ -91,13 +90,17 @@ public class Character_3 : MonoBehaviour
 
         if (isAnchored && !isJumping)
         {
-            rb.gravityScale = 0;
+            // rb.gravityScale = 0;
             if (useAttraction)
                 PlateformAttraction();
         }
         else
         {
-            rb.gravityScale = 1;
+            // rb.gravityScale = 1;
+        }
+        if (!isAnchored && !isJumping)
+        {
+            rb.AddForce(new Vector2(0, -20));
         }
         // MatchPlateformFloorAngle();
 
@@ -247,6 +250,13 @@ public class Character_3 : MonoBehaviour
         rb.AddForce(direction * gravitationalPull * -1, ForceMode2D.Force);
         // rb.velocity = direction.normalized * gravitationalPull * Time.fixedDeltaTime * -1;
     }
+
+    private void PlateformAttractionV2(RaycastHit2D hit)
+    {
+        var direction = Quaternion.Euler(0, 0, 180) * (hit.point - hit.normal);
+        rb.AddForce(hit.normal * gravitationalPull * -1, ForceMode2D.Force);
+    }
+
     private void MatchPlateformFloorAngle()
     {
         var box = GetComponent<BoxCollider2D>();
@@ -272,7 +282,7 @@ public class Character_3 : MonoBehaviour
         // var hit = Physics2D.Raycast(transform.TransformPoint(transform.position), transform.TransformDirection(closestCollisionPoint), Mathf.Infinity);
         var hit = Physics2D.Raycast(transform.position, closestCollisionPoint - posV2, Mathf.Infinity);
 
-        Debug.DrawLine(hit.point, hit.point - hit.normal, Color.red);
+        // Debug.DrawLine(hit.point, hit.point - hit.normal, Color.red);
         // Debug.DrawLine(posV2, hit.point, Color.green);
         // Debug.DrawLine(listener, hit.point, Color.red);
 
@@ -335,12 +345,12 @@ public class Character_3 : MonoBehaviour
     {
         // BoxCast usgin prediction method for direction & distance
         // If hits 
-        // rotates to match floor
-        // No need to cast this collider anymore
-        // BoxCast on chara feets 
-        // If hits
-        // IsAnchored = true
-        // PlateformAttraction()
+        //      rotates to match floor
+        //      No need to cast this collider anymore
+        //      BoxCast on chara feets 
+        //      If hits
+        //          IsAnchored = true
+        //          PlateformAttraction()
 
         if (isAnchored) return;
 
@@ -349,16 +359,31 @@ public class Character_3 : MonoBehaviour
         // Vector2 nextFramePosition = GetNextFramePosition(transform.position);
         float distance = Vector2.Distance(transform.position, nextFramePosition);
 
-        print("posX: " + transform.position.x + " posY: " + transform.position.y + " nextX: " + nextFramePosition.x + " nextY: " + nextFramePosition.y);
 
-        Debug.DrawRay(transform.position, nextFramePosition - relouV2(transform.position), Color.blue, 0.3f);
+        // Debug.DrawRay(transform.position, nextFramePosition - relouV2(transform.position), Color.blue, 0.3f);
 
         RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - relouV2(transform.position), detectionDistance, canHit);
 
         if (hit.collider != null)
         {
-            Debug.DrawRay(transform.position, hit.point - relouV2(transform.position), Color.yellow, 1);
+            // Debug.DrawRay(transform.position, hit.point - relouV2(transform.position), Color.yellow, 0.2f);
             MatchPlateformFloorAngleV2(hit);
+
+            // Debug.DrawRay(transform.position, transform.up - Vector3.zero, Color.red, 1);
+        }
+
+        RaycastHit2D feetHit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), Vector3.zero - transform.up, 5, canHit);
+        if (feetHit.collider != null)
+        {
+            // isAnchored = true;
+            if (!isJumping)
+            {
+
+                // Debug.DrawLine(hit.point, hit.point - hit.normal, Color.red);
+                PlateformAttractionV2(feetHit);
+            }
+            // print("Grounded");
+            // Debug.DrawRay(transform.position, feetHit.point - relouV2(transform.position), Color.cyan, 1);
         }
     }
 
@@ -368,7 +393,7 @@ public class Character_3 : MonoBehaviour
         return CalculatePositionPoint(timeValue, origin);
     }
 
-    private Vector2[] CalluateFuturePosions(Vector2 origin)
+    private Vector2[] CalculateFuturePosions(Vector2 origin)
     {
         Vector2[] positions = new Vector2[31];
 
@@ -378,6 +403,7 @@ public class Character_3 : MonoBehaviour
         {
             float currentTimeValue = lowestTimeValue * i;
             positions[i] = CalculatePositionPoint(currentTimeValue, origin);
+            Debug.DrawLine(i == 0 ? transform.position : positions[i - 1], positions[i]);
         }
 
         return positions;
@@ -393,7 +419,7 @@ public class Character_3 : MonoBehaviour
 
     private Vector2 HitPosition(Vector2 origin)
     {
-        float lowestTimeValue = MaxTimeY(origin) / 15;
+        float lowestTimeValue = MaxTimeY(origin) / 40;
 
         for (int i = 1; i < 16; i++)
         {
