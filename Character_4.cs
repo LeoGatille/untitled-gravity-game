@@ -2,9 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnitySpriteCutter;
 
-public class Character_3 : MonoBehaviour
+public class Character_4 : MonoBehaviour
 {
 
     //* ------------------------
@@ -21,7 +20,8 @@ public class Character_3 : MonoBehaviour
     private Transform gravityAnchorParent;
     private Rigidbody2D rb;
     private Vector2 gravityForce;
-    private Vector2[] cutPositions;
+
+    private Vector2 cutDirection;
 
 
     //* ------------------------
@@ -56,17 +56,13 @@ public class Character_3 : MonoBehaviour
 
     void Update()
     {
-        if (isAnchored)
-        {
-            DebugCutDirection();
-        }
 
-        if (isAnchored && Input.GetButton("Jump"))
+
+        if (isAnchored && Input.GetKeyDown(KeyCode.P))
         {
             CutStuff();
             print("Key down: P");
         }
-
 
         Debug.DrawRay(transform.up, Vector3.zero - transform.up);
         ShowDirection();
@@ -290,10 +286,11 @@ public class Character_3 : MonoBehaviour
 
         if (feetHit.collider != null)
         {
-            cutPositions = new Vector2[] { feetHit.point, feetHit.normal };
+            cutDirection = feetHit.normal;
             isAnchored = true;
             if (!isJumping)
             {
+                cutDirection = Vector2.zero;
                 PlateformAttractionV2(feetHit);
             }
         }
@@ -422,30 +419,8 @@ public class Character_3 : MonoBehaviour
 
 
         }
-
-
-
-
-
-
-
-        // for (int i = 0; i < collisionListeners.Length; i++)
-        // {
-        //     var color = i == closestHitRayIndex ? Color.red : Color.black;
-        //     Debug.DrawLine(collisionListeners[i], HitPosition(collisionListeners[i]), color);
-        // }
-
         return collisionListeners[closestHitRayIndex];
-
-
-
-
-        // DispayCollisionPoint(top);
-        // DispayCollisionPoint(boxBounds.center);
-        // DispayCollisionPoint(bottom);
     }
-
-
 
     //* ------------------------
     //* Collision detection
@@ -453,53 +428,17 @@ public class Character_3 : MonoBehaviour
 
     private void CutStuff()
     {
-        Vector2 posV2 = VectrorConvertor.v3ToV2(transform.position);
-
-        List<GameObject> gameObjectToCut = new List<GameObject>();
-        Vector2 origin = cutPositions[0];
-        Vector2 normal = cutPositions[1];
-        Vector2 cutDirection = Vector2.zero - normal;
-        Vector2 cutLimit = posV2 + (posV2 + cutDirection + cutDirection - posV2) * 5;
-
-        RaycastHit2D[] hits = Physics2D.LinecastAll(transform.position, cutLimit, canHit);
-
-        foreach (RaycastHit2D hit in hits)
-        {
-            gameObjectToCut.Add(hit.transform.gameObject);
-        }
-
-        foreach (GameObject go in gameObjectToCut)
-        {
-            Rigidbody2D goRb = go.GetComponent<Rigidbody2D>();
-            goRb.gravityScale = 2;
-            goRb.mass = 50;
-            goRb.AddForce(cutLimit * 10);
-            SpriteCutterOutput output = SpriteCutter.Cut(new SpriteCutterInput()
-            {
-                lineStart = transform.position,
-                lineEnd = cutLimit,
-                gameObject = go,
-                gameObjectCreationMode = SpriteCutterInput.GameObjectCreationMode.CUT_OFF_COPY, //! Wut ?  
-            });
-        }
-
-
+        Debug.DrawRay(transform.position, cutDirection, Color.red);
+        Debug.DrawLine(transform.position, cutDirection * 5, Color.cyan);
     }
-    private void DebugCutDirection()
-    {
-        List<GameObject> gameObjectToCut = new List<GameObject>();
-        Vector2 origin = cutPositions[0];
-        Vector2 normal = cutPositions[1];
-        Vector2 cutDirection = Vector2.zero - normal;
-        Vector2 posV2 = VectrorConvertor.v3ToV2(transform.position);
 
 
 
-        Debug.DrawLine(origin, origin + cutDirection, Color.red);
 
-        // Normal from postion through obj
-        Debug.DrawLine(transform.position, posV2 + (posV2 + cutDirection + cutDirection - posV2) * 5, Color.blue);
 
-        Debug.DrawLine(Vector3.zero, origin + cutDirection, Color.magenta);
-    }
+
+
+
+
+
 }
