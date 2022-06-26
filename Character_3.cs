@@ -1,8 +1,11 @@
 using System;
+using System.Timers;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnitySpriteCutter;
+
 
 public class Character_3 : MonoBehaviour
 {
@@ -22,7 +25,9 @@ public class Character_3 : MonoBehaviour
     private Rigidbody2D rb;
     private Vector2 gravityForce;
     private Vector2[] cutPositions;
+    private Vector2 direction;
 
+    private bool lockCutter;
 
     //* ------------------------
     //* Public
@@ -37,6 +42,7 @@ public class Character_3 : MonoBehaviour
     public float moveSpeed;
     public float maxSpeed;
     public float jumpPower;
+    public Transform dashReadyParticules;
 
     //* ------------------------
     //* Debug
@@ -46,6 +52,7 @@ public class Character_3 : MonoBehaviour
     public bool useRotation;
 
     public float detectionDistance;
+#nullable enable
 
     void Start()
     {
@@ -56,20 +63,18 @@ public class Character_3 : MonoBehaviour
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.Backspace))
+        {
+            Scene scene = SceneManager.GetActiveScene();
+            SceneManager.LoadScene(scene.name);
+        }
         if (isAnchored)
         {
             DebugCutDirection();
         }
 
-        if (isAnchored && Input.GetButton("Jump"))
-        {
-            CutStuff();
-            print("Key down: P");
-        }
-
-
-        Debug.DrawRay(transform.up, Vector3.zero - transform.up);
         ShowDirection();
+        RecordDash();
         RecordJump();
         CalculateFuturePosions(transform.position);
 
@@ -79,7 +84,7 @@ public class Character_3 : MonoBehaviour
             transform.position = new Vector2(0, 0);
             transform.rotation = new Quaternion(0, 0, 0, 0);
         }
-        if (useRotation)
+        if (useRotation && !isDashing)
         {
             CastCollider();
         }
@@ -91,8 +96,23 @@ public class Character_3 : MonoBehaviour
 
     void FixedUpdate()
     {
-        Translate(Input.GetAxis("Horizontal"));
 
+        if (isDashing)
+        {
+            if (canDash)
+            {
+                Dash();
+                dashTime += Time.deltaTime;
+            }
+            else
+            {
+                slowDownDash();
+            }
+        }
+        else
+        {
+            Translate(Input.GetAxis("Horizontal"));
+        }
 
         if (isJumping)
         {
@@ -100,26 +120,10 @@ public class Character_3 : MonoBehaviour
             Jump();
         }
 
-        // if (isAnchored && !isJumping)
-        // {
-        //     // rb.gravityScale = 0;
-        //     if (useAttraction)
-        //         PlateformAttraction();
-        // }
-        // else
-        // {
-        //     // rb.gravityScale = 1;
-        // }
         if (!isAnchored && !isJumping)
         {
             rb.AddForce(new Vector2(0, -20));
         }
-        // MatchPlateformFloorAngle();
-
-
-
-
-
     }
 
 
@@ -131,17 +135,21 @@ public class Character_3 : MonoBehaviour
         float x = Input.GetAxis("Horizontal");
         float y = Input.GetAxis("Vertical");
 
-        return Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
+        // return Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
+        // return Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
+
+        return Vector3.zero - Quaternion.Euler(0, 0, 180) * new Vector2(x, y); // - VectrorConvertor.v3ToV2(transform.position);
     }
     private void ShowDirection()
     {
         float x = Input.GetAxis("Horizontal");
         float y = Input.GetAxis("Vertical");
 
-        Vector2 realDirection = Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
+        Vector2 direction = new Vector2(x, y);
 
         //* Juste have to shot a ray & make sure the arrow won't hit the current gravityAncor
-        Debug.DrawLine(transform.position, VectrorConvertor.v3ToV2(transform.position) - realDirection, Color.green);
+        // Debug.DrawLine(transform.position, VectrorConvertor.v3ToV2(transform.position) - realDirection, Color.red);
+        // Debug.DrawRay(transform.position, direction * 100, Color.cyan);
     }
 
     private void Translate(float movement)
@@ -172,12 +180,204 @@ public class Character_3 : MonoBehaviour
             animator.SetBool("isWalking", false);
         }
     }
+
     private void Flip()
     {
         Vector3 currentScale = transform.localScale;
         currentScale.x *= -1;
         transform.localScale = currentScale;
         isFacingRight = !isFacingRight;
+    }
+
+
+    //* ------------------------
+    //* $ Dash
+    //* ------------------------
+    private bool canDash = true;
+    private bool isDashing = false;
+    private float dashTime = 0;
+    private float dashRecovetyTimer = 0;
+    private Vector2 dashDirection;
+
+    public float maxDashTime;
+    public float maxDashSpeed;
+    public float dashSpeed;
+    public float maxdashRecoveryTime;
+    public float dashCutLength;
+
+    private void RecordDash()
+    {
+        if (canDash)
+        {
+            if (Input.GetKeyDown(KeyCode.LeftShift))
+            {
+                if (Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0)
+                {
+                    dashDirection = GetInputDirection().normalized;
+                }
+                else
+                {
+                    // ? Should it always be the same direction ?
+                    // ? Facing direction seems a bit thought to understand in game so small
+                    dashDirection = isFacingRight ? Vector2.right : Vector2.left;
+                }
+                // rb.mass = 500;
+                rb.velocity = Vector3.zero;
+                isDashing = true;
+                DashCut();
+            }
+        }
+        else
+        {
+            if (isDashing)
+            {
+                if (rb.velocity.magnitude <= maxSpeed)
+                {
+                    // rb.mass = 1;
+                    isDashing = false;
+                    dashTime = 0;
+                }
+            }
+            else
+            {
+                dashRecovetyTimer += Time.deltaTime;
+                if (dashRecovetyTimer >= maxdashRecoveryTime)
+                {
+                    canDash = true;
+                    dashRecovetyTimer = 0;
+                }
+            }
+        }
+
+        if (dashTime >= maxDashTime)
+        {
+            canDash = false;
+        }
+    }
+
+    private void Dash()
+    {
+
+        // Debug.DrawLine(transform.position, dashDirection)
+
+
+        // Vector2 relativeDashDirection = dashDirection - Vector2.zero;
+
+        Vector3 a = Quaternion.Euler(0, 0, 15) * dashDirection * 10;
+        Vector3 b = Quaternion.Euler(0, 0, -15) * dashDirection * 10;
+
+        Debug.DrawLine(transform.position, a + transform.position, Color.red);
+        Debug.DrawLine(transform.position, b + transform.position, Color.red);
+
+
+        if (rb.velocity.magnitude < maxDashSpeed)
+        {
+            print("ADD FORCE");
+            rb.AddForce(dashDirection * (dashSpeed * (rb.mass / 2)), ForceMode2D.Impulse);
+        }
+        if (canDash)
+        {
+            // DashPush();
+        }
+    }
+
+    private void DashCut()
+    {
+
+        // Vector3 cutterA = Quaternion.Euler(0, 0, 15) * dashDirection * 10;
+        // Vector3 cutterB = Quaternion.Euler(0, 0, -15) * dashDirection * 10;
+
+
+
+
+
+
+        // CutStuff(dashDirection, dashCutLength);
+
+        List<SpriteCutterOutput> cutItems = CutStuff(dashDirection, dashCutLength);
+        foreach (SpriteCutterOutput item in cutItems)
+        {
+            GameObject[] pieces = new GameObject[] { item.firstSideGameObject, item.secondSideGameObject };
+            foreach (GameObject piece in pieces)
+            {
+                Rigidbody2D pieceRb = piece.GetComponent<Rigidbody2D>();
+                pieceRb.AddForce((piece.transform.position - transform.position) * 100000);
+            }
+        }
+    }
+
+
+    private void AddExplosionForce(Rigidbody2D rb, float explosionForce, Vector2 explosionPosition, float explosionRadius, float upwardsModifier = 0.0F, ForceMode2D mode = ForceMode2D.Force)
+    {
+        var explosionDir = rb.position - explosionPosition;
+        var explosionDistance = explosionDir.magnitude;
+
+        // Normalize without computing magnitude again
+        if (upwardsModifier == 0)
+            explosionDir /= explosionDistance;
+        else
+        {
+            // From Rigidbody.AddExplosionForce doc:
+            // If you pass a non-zero value for the upwardsModifier parameter, the direction
+            // will be modified by subtracting that value from the Y component of the centre point.
+            explosionDir.y += upwardsModifier;
+            explosionDir.Normalize();
+        }
+
+        rb.AddForce(Mathf.Lerp(0, explosionForce, (1 - explosionDistance)) * explosionDir, mode);
+    }
+
+    private void DashPush()
+    {
+
+        Debug.DrawRay(transform.position, dashDirection, Color.cyan);
+        List<Rigidbody2D> rbAffectedByExplosion = new List<Rigidbody2D>();
+        Vector2 explosionOrigin;
+
+        Vector2 size = GetComponent<BoxCollider2D>().size;
+        RaycastHit2D[] hits = Physics2D.BoxCastAll(transform.position, size * 2, Quaternion.Angle(Quaternion.identity, transform.rotation), dashDirection, dashDirection.magnitude, canHit);
+        foreach (RaycastHit2D boxHit in hits)
+        {
+            rbAffectedByExplosion.Add(boxHit.transform.gameObject.GetComponent<Rigidbody2D>());
+        }
+
+
+        RaycastHit2D hit = Physics2D.Raycast(transform.position, dashDirection, dashDirection.magnitude, canHit);
+        if (hit.collider != null)
+        {
+            explosionOrigin = hit.point;
+            foreach (Rigidbody2D explodedRb in rbAffectedByExplosion)
+            {
+                AddExplosionForce(explodedRb, 10000, explosionOrigin * 2, 3, 0.0f, ForceMode2D.Force);
+            }
+        }
+        else
+        {
+            Debug.LogWarning("DashPush.hit.collider == null");
+        }
+
+        //! Legacy (addForce to both cut pieces instead of explosionForce)
+        // Vector2 size = GetComponent<BoxCollider2D>().size;
+        // Vector2 nextFramePosition = CalculatePositionPoint(MaxTimeY(transform.position) / 2, transform.position);
+        // float distance = Vector3.Distance(nextFramePosition, transform.position);
+        // RaycastHit2D[] hits = Physics2D.BoxCastAll(transform.position, size * 2, Quaternion.Angle(Quaternion.identity, transform.rotation), dashDirection, distance, canHit);
+
+        // foreach (RaycastHit2D hit in hits)
+        // {
+        //     Vector2 collisionPoint = hit.point;
+        //     Rigidbody2D hitRb = hit.transform.gameObject.GetComponent<Rigidbody2D>();
+        //     hitRb.AddForce((collisionPoint - VectrorConvertor.v3ToV2(transform.position)) * 1000, ForceMode2D.Impulse);
+        // }
+    }
+
+    private void slowDownDash()
+    {
+        if (rb.velocity.magnitude > maxSpeed)
+        {
+            print("slow down");
+            rb.AddForce(dashDirection * -500);
+
+        }
     }
 
 
@@ -197,7 +397,7 @@ public class Character_3 : MonoBehaviour
             animator.SetBool("isJumping", isJumping);
         }
 
-        if (Input.GetButtonUp("Jump") | jumpTime > JumpTimeLimit)
+        if ((Input.GetButtonUp("Jump") && (jumpTime > 0 && jumpTime < JumpTimeLimit / 2)) || jumpTime > JumpTimeLimit)
         {
             isJumping = false;
             animator.SetBool("isJumping", isJumping);
@@ -226,8 +426,8 @@ public class Character_3 : MonoBehaviour
         // float velocityYToAdd = isVYValid ? maxVelocityYToAdd : maxVelocityYToAdd - velocity.y;
 
         // print("X valid : " + isVXValid + " Y valid : " + isVYValid);
-
-        Vector2 force = new Vector2(0, isVYValid ? jumpPower : 0);
+        var realJumpPower = jumpTime == 0 ? jumpPower * 2 : jumpPower;
+        Vector2 force = new Vector2(0, isVYValid ? realJumpPower : 0);
 
         // if (isAnchored)
         // {
@@ -319,7 +519,7 @@ public class Character_3 : MonoBehaviour
         {
             float currentTimeValue = lowestTimeValue * i;
             positions[i] = CalculatePositionPoint(currentTimeValue, origin);
-            Debug.DrawLine(i == 0 ? transform.position : positions[i - 1], positions[i]);
+            // Debug.DrawLine(i == 0 ? transform.position : positions[i - 1], positions[i]);
         }
 
         return positions;
@@ -448,43 +648,65 @@ public class Character_3 : MonoBehaviour
 
 
     //* ------------------------
-    //* Collision detection
+    //* Cut
     //* ------------------------
 
-    private void CutStuff()
+#nullable enable
+    private List<SpriteCutterOutput> CutStuff(Vector2 cutDirection, float cutLength)
     {
+        lockCutter = true;
         Vector2 posV2 = VectrorConvertor.v3ToV2(transform.position);
-
-        List<GameObject> gameObjectToCut = new List<GameObject>();
-        Vector2 origin = cutPositions[0];
-        Vector2 normal = cutPositions[1];
-        Vector2 cutDirection = Vector2.zero - normal;
-        Vector2 cutLimit = posV2 + (posV2 + cutDirection + cutDirection - posV2) * 5;
+        // Vector2 cutDirection = Vector2.zero - normal;
+        Vector2 cutLimit = posV2 + (posV2 + cutDirection + cutDirection - posV2) * cutLength;
 
         RaycastHit2D[] hits = Physics2D.LinecastAll(transform.position, cutLimit, canHit);
-
+        List<SpriteCutterOutput> outputs = new List<SpriteCutterOutput>();
         foreach (RaycastHit2D hit in hits)
         {
-            gameObjectToCut.Add(hit.transform.gameObject);
-        }
-
-        foreach (GameObject go in gameObjectToCut)
-        {
+            GameObject go = hit.transform.gameObject;
             Rigidbody2D goRb = go.GetComponent<Rigidbody2D>();
-            goRb.gravityScale = 2;
-            goRb.mass = 50;
-            goRb.AddForce(cutLimit * 10);
-            SpriteCutterOutput output = SpriteCutter.Cut(new SpriteCutterInput()
+            // goRb.gravityScale = 2;
+            // goRb.mass = 0.01f;
+            // goRb.AddForce(cutLimit * 10);
+            // SpriteCutterOutput output =
+            outputs.Add(SpriteCutter.Cut(new SpriteCutterInput()
             {
                 lineStart = transform.position,
                 lineEnd = cutLimit,
                 gameObject = go,
                 gameObjectCreationMode = SpriteCutterInput.GameObjectCreationMode.CUT_OFF_COPY, //! Wut ?  
-            });
+            })
+            );
+
+
+            // List<GameObject> pieces = new List<GameObject>();
+            // pieces.Add(output.firstSideGameObject);
+            // pieces.Add(output.secondSideGameObject);
+
+            // foreach (GameObject piece in pieces)
+            // {
+            //     Rigidbody2D pRb = piece.GetComponent<Rigidbody2D>();
+            //     pRb.mass = 50;
+            //     pRb.AddForce(Vector2.zero * 10);
+            // }
+
+
+            // lockCutter = false;
+            // var dashTimer = new System.Timers.Timer();
+            // dashTimer.Interval = 1000;
+            // dashTimer.Elapsed += UnlockCutter;
+            // dashTimer.AutoReset = false;
+            // dashTimer.Enabled = true;
+
         }
-
-
+        return outputs;
     }
+
+    private void UnlockCutter(object? source, ElapsedEventArgs e)
+    {
+        lockCutter = false;
+    }
+
     private void DebugCutDirection()
     {
         List<GameObject> gameObjectToCut = new List<GameObject>();
@@ -495,11 +717,11 @@ public class Character_3 : MonoBehaviour
 
 
 
-        Debug.DrawLine(origin, origin + cutDirection, Color.red);
+        // Debug.DrawLine(origin, origin + cutDirection, Color.red);
 
         // Normal from postion through obj
-        Debug.DrawLine(transform.position, posV2 + (posV2 + cutDirection + cutDirection - posV2) * 5, Color.blue);
+        // Debug.DrawLine(transform.position, posV2 + (posV2 + cutDirection + cutDirection - posV2) * 5, Color.blue);
 
-        Debug.DrawLine(Vector3.zero, origin + cutDirection, Color.magenta);
+        // Debug.DrawLine(Vector3.zero, origin + cutDirection, Color.magenta);
     }
 }
