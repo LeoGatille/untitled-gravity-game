@@ -137,7 +137,7 @@ public class Character_4 : MonoBehaviour
         Vector2 realDirection = Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
 
         //* Juste have to shot a ray & make sure the arrow won't hit the current gravityAncor
-        Debug.DrawLine(transform.position, VectrorConvertor.v3ToV2(transform.position) - realDirection, Color.green);
+        Debug.DrawLine(transform.position, VectorConvertor.v3ToV2(transform.position) - realDirection, Color.green);
     }
 
     private void Translate(float movement)
@@ -277,7 +277,7 @@ public class Character_4 : MonoBehaviour
         Vector2 nextFramePosition = CalculatePositionPoint(MaxTimeY(transform.position) / 2, transform.position);
         float distance = Vector2.Distance(transform.position, nextFramePosition);
 
-        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - VectrorConvertor.v3ToV2(transform.position), detectionDistance, canHit);
+        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - VectorConvertor.v3ToV2(transform.position), detectionDistance, canHit);
         RaycastHit2D feetHit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), Vector3.zero - transform.up, 5, canHit);
         if (hit.collider != null)
         {

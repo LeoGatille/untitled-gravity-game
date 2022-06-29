@@ -89,9 +89,6 @@ public class Character_3 : MonoBehaviour
             CastCollider();
         }
         GetNextCollisionPoint();
-        //! Need to add force at the end of all computation to remove parasite forces 
-        //! sutch as the gravityPull falsing the jump's velocity computation 
-        //! (actually their no way to see any difference beteween gravityForce or a Translation froce)
     }
 
     void FixedUpdate()
@@ -138,7 +135,7 @@ public class Character_3 : MonoBehaviour
         // return Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
         // return Quaternion.Euler(0, 0, 180) * new Vector2(x, y);
 
-        return Vector3.zero - Quaternion.Euler(0, 0, 180) * new Vector2(x, y); // - VectrorConvertor.v3ToV2(transform.position);
+        return Vector3.zero - Quaternion.Euler(0, 0, 180) * new Vector2(x, y); // - VectorConvertor.v3ToV2(transform.position);
     }
     private void ShowDirection()
     {
@@ -148,7 +145,7 @@ public class Character_3 : MonoBehaviour
         Vector2 direction = new Vector2(x, y);
 
         //* Juste have to shot a ray & make sure the arrow won't hit the current gravityAncor
-        // Debug.DrawLine(transform.position, VectrorConvertor.v3ToV2(transform.position) - realDirection, Color.red);
+        // Debug.DrawLine(transform.position, VectorConvertor.v3ToV2(transform.position) - realDirection, Color.red);
         // Debug.DrawRay(transform.position, direction * 100, Color.cyan);
     }
 
@@ -211,6 +208,7 @@ public class Character_3 : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.LeftShift))
             {
+                GetComponent<Collider2D>().enabled = false;
                 if (Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0)
                 {
                     dashDirection = GetInputDirection().normalized;
@@ -252,6 +250,7 @@ public class Character_3 : MonoBehaviour
         if (dashTime >= maxDashTime)
         {
             canDash = false;
+            GetComponent<Collider2D>().enabled = true;
         }
     }
 
@@ -272,11 +271,11 @@ public class Character_3 : MonoBehaviour
 
         if (rb.velocity.magnitude < maxDashSpeed)
         {
-            print("ADD FORCE");
             rb.AddForce(dashDirection * (dashSpeed * (rb.mass / 2)), ForceMode2D.Impulse);
         }
         if (canDash)
         {
+            // DashCut();
             // DashPush();
         }
     }
@@ -293,39 +292,71 @@ public class Character_3 : MonoBehaviour
 
 
         // CutStuff(dashDirection, dashCutLength);
+        RaycastHit2D hit = Physics2D.Raycast(transform.position, dashDirection, 50, canHit);
 
-        List<SpriteCutterOutput> cutItems = CutStuff(dashDirection, dashCutLength);
-        foreach (SpriteCutterOutput item in cutItems)
+        if (hit.collider != null)
         {
-            GameObject[] pieces = new GameObject[] { item.firstSideGameObject, item.secondSideGameObject };
-            foreach (GameObject piece in pieces)
+            List<SpriteCutterOutput> cutItems = CutStuff(dashDirection, dashCutLength);
+            foreach (SpriteCutterOutput item in cutItems)
             {
-                Rigidbody2D pieceRb = piece.GetComponent<Rigidbody2D>();
-                pieceRb.AddForce((piece.transform.position - transform.position) * 100000);
+
+                GameObject[] pieces = new GameObject[] { item.firstSideGameObject, item.secondSideGameObject };
+                Vector2 pos1 = pieces[0].transform.GetComponent<Collider2D>().ClosestPoint(transform.position);
+                Vector2 pos2 = pieces[1].transform.GetComponent<Collider2D>().ClosestPoint(transform.position);
+                // Vector2 explosionOrigin = pos1 + (pos2 - pos1);
+
+                // Debug.DrawRay(pos1, pos2 - pos1, Color.red, 5f);
+
+                // pieces[1].GetComponent<Rigidbody2D>().AddForce(hit.point * 100000);
+
+                Debug.DrawRay(transform.position, pos1 - VectorConvertor.v3ToV2(transform.position), Color.green, 6f);
+                Debug.DrawRay(transform.position, pos2 - VectorConvertor.v3ToV2(transform.position), Color.blue, 3f);
+
+                // print("Pos1 : " + pos1 + " Pos2 : " + pos2);
+
+                foreach (GameObject piece in pieces)
+                {
+                    // if (piece.GetComponent<BoxCollider2D>().bounds.extents.x <= 10) //! Need more thinking
+                    // {
+                    //     Destroy(piece);
+                    //     Debug.LogWarning("Destroy piece");
+                    // }
+                    Rigidbody2D pieceRb = piece.GetComponent<Rigidbody2D>();
+
+                    pieceRb.AddExplosionForce(explosionForce: 10000, hit.point, 50, 0.0f, ForceMode2D.Force);
+                    // pieceRb.AddForce(hit.point * 100000);
+
+                    // ExplosionForce.AddExplosionForce(pieceRb, explosionForce: 100000, hit.point, 10, 0.0f, ForceMode2D.Force);
+                    // pieceRb.AddForce((piece.transform.position - transform.position) * 100000);
+                }
             }
         }
-    }
-
-
-    private void AddExplosionForce(Rigidbody2D rb, float explosionForce, Vector2 explosionPosition, float explosionRadius, float upwardsModifier = 0.0F, ForceMode2D mode = ForceMode2D.Force)
-    {
-        var explosionDir = rb.position - explosionPosition;
-        var explosionDistance = explosionDir.magnitude;
-
-        // Normalize without computing magnitude again
-        if (upwardsModifier == 0)
-            explosionDir /= explosionDistance;
         else
         {
-            // From Rigidbody.AddExplosionForce doc:
-            // If you pass a non-zero value for the upwardsModifier parameter, the direction
-            // will be modified by subtracting that value from the Y component of the centre point.
-            explosionDir.y += upwardsModifier;
-            explosionDir.Normalize();
+            Debug.LogWarning("DashCut.hit.collider = null");
         }
-
-        rb.AddForce(Mathf.Lerp(0, explosionForce, (1 - explosionDistance)) * explosionDir, mode);
     }
+
+
+    // private void AddExplosionForce(Rigidbody2D rb, float explosionForce, Vector2 explosionPosition, float explosionRadius, float upwardsModifier = 0.0F, ForceMode2D mode = ForceMode2D.Force)
+    // {
+    //     var explosionDir = rb.position - explosionPosition;
+    //     var explosionDistance = explosionDir.magnitude;
+
+    //     // Normalize without computing magnitude again
+    //     if (upwardsModifier == 0)
+    //         explosionDir /= explosionDistance;
+    //     else
+    //     {
+    //         // From Rigidbody.AddExplosionForce doc:
+    //         // If you pass a non-zero value for the upwardsModifier parameter, the direction
+    //         // will be modified by subtracting that value from the Y component of the centre point.
+    //         explosionDir.y += upwardsModifier;
+    //         explosionDir.Normalize();
+    //     }
+
+    //     rb.AddForce(Mathf.Lerp(0, explosionForce, (1 - explosionDistance)) * explosionDir, mode);
+    // }
 
     private void DashPush()
     {
@@ -348,7 +379,7 @@ public class Character_3 : MonoBehaviour
             explosionOrigin = hit.point;
             foreach (Rigidbody2D explodedRb in rbAffectedByExplosion)
             {
-                AddExplosionForce(explodedRb, 10000, explosionOrigin * 2, 3, 0.0f, ForceMode2D.Force);
+                // AddExplosionForce(explodedRb, 100000, explosionOrigin, 10, 0.0f, ForceMode2D.Impulse);
             }
         }
         else
@@ -366,7 +397,7 @@ public class Character_3 : MonoBehaviour
         // {
         //     Vector2 collisionPoint = hit.point;
         //     Rigidbody2D hitRb = hit.transform.gameObject.GetComponent<Rigidbody2D>();
-        //     hitRb.AddForce((collisionPoint - VectrorConvertor.v3ToV2(transform.position)) * 1000, ForceMode2D.Impulse);
+        //     hitRb.AddForce((collisionPoint - VectorConvertor.v3ToV2(transform.position)) * 1000, ForceMode2D.Impulse);
         // }
     }
 
@@ -481,7 +512,7 @@ public class Character_3 : MonoBehaviour
         Vector2 nextFramePosition = CalculatePositionPoint(MaxTimeY(transform.position) / 2, transform.position);
         float distance = Vector2.Distance(transform.position, nextFramePosition);
 
-        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - VectrorConvertor.v3ToV2(transform.position), detectionDistance, canHit);
+        RaycastHit2D hit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), nextFramePosition - VectorConvertor.v3ToV2(transform.position), detectionDistance, canHit);
         RaycastHit2D feetHit = Physics2D.BoxCast(transform.position, size, Quaternion.Angle(Quaternion.identity, transform.rotation), Vector3.zero - transform.up, 5, canHit);
         if (hit.collider != null)
         {
@@ -655,7 +686,7 @@ public class Character_3 : MonoBehaviour
     private List<SpriteCutterOutput> CutStuff(Vector2 cutDirection, float cutLength)
     {
         lockCutter = true;
-        Vector2 posV2 = VectrorConvertor.v3ToV2(transform.position);
+        Vector2 posV2 = VectorConvertor.v3ToV2(transform.position);
         // Vector2 cutDirection = Vector2.zero - normal;
         Vector2 cutLimit = posV2 + (posV2 + cutDirection + cutDirection - posV2) * cutLength;
 
@@ -713,7 +744,7 @@ public class Character_3 : MonoBehaviour
         Vector2 origin = cutPositions[0];
         Vector2 normal = cutPositions[1];
         Vector2 cutDirection = Vector2.zero - normal;
-        Vector2 posV2 = VectrorConvertor.v3ToV2(transform.position);
+        Vector2 posV2 = VectorConvertor.v3ToV2(transform.position);
 
 
 

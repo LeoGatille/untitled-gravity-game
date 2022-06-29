@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public static class VectrorConvertor
+public static class VectorConvertor
 {
     public static Vector3 v2ToV3(Vector2 v2)
     {
